@@ -801,16 +801,16 @@ model_id = ""
 voice_id = "default"
 
 [vieneu]
-# VieNeu-TTS local Vietnamese speech synthesis (CPU ONNX / GPU PyTorch CUDA).
-# device: "auto" (uses CUDA GPU when available, else CPU), "cpu", or "cuda".
+# VieNeu-TTS: Tổng hợp giọng nói tiếng Việt cục bộ / Local Vietnamese speech synthesis (CPU ONNX / GPU PyTorch CUDA).
+# device / Thiết bị: "auto" (tự động dùng GPU CUDA nếu có, ngược lại CPU), "cpu", hoặc "cuda".
 device = "auto"
-# mode: "v3turbo" (48 kHz studio quality, supports CPU & GPU) or "v3nano" (24 kHz fast CPU ONNX).
+# mode / Chế độ: "v3turbo" (âm thanh 48 kHz, CPU & GPU) hoặc "v3nano" (nhẹ nhanh 24 kHz ONNX CPU).
 mode = "v3turbo"
-# precision: "fp32" or "int8" (applies to v3turbo ONNX CPU backend).
+# precision / Độ chính xác: "fp32" hoặc "int8" (áp dụng cho ONNX CPU).
 precision = "fp32"
-# Optional custom HuggingFace repo or local checkpoint path. Leave empty for default.
+# backbone_repo: Tùy chọn checkpoint hoặc repo HuggingFace. Để trống để dùng mặc định.
 backbone_repo = ""
-# Optional local reference audio file path for zero-shot voice cloning.
+# ref_audio: Tùy chọn đường dẫn file âm thanh mẫu (.wav, .mp3) để nhân bản giọng nói (voice cloning).
 ref_audio = ""
 # Optional HuggingFace token if using private model repositories.
 hf_token = ""

@@ -13,7 +13,7 @@ WEBUI_MAIN = ROOT_DIR / "webui" / "Main.py"
 I18N_DIR = ROOT_DIR / "webui" / "i18n"
 LLM_PROVIDER_TIPS_PREFIX = "llm_provider_tips."
 TTS_PROVIDER_TIPS_PREFIX = "tts_provider_tips."
-SECONDARY_LOCALES = ("az", "ca", "de", "es", "fr", "id", "it", "ko", "pt", "ru", "tr", "vi")
+SECONDARY_LOCALES = ("az", "ca", "de", "es", "fr", "id", "it", "ko", "pt", "ru", "tr")
 PROVIDER_TIPS_PREFIXES = (
     LLM_PROVIDER_TIPS_PREFIX,
     TTS_PROVIDER_TIPS_PREFIX,
@@ -367,7 +367,7 @@ class TestWebuiI18n(unittest.TestCase):
             "https://global.modelmesh.info/model",
         }
 
-        for locale in ("zh", "en"):
+        for locale in ("zh", "en", "vi"):
             with self.subTest(locale=locale):
                 tips = _load_translation(locale)["llm_provider_tips.shengsuanyun"]
                 provider = get_llm_provider("shengsuanyun")
@@ -382,10 +382,31 @@ class TestWebuiI18n(unittest.TestCase):
         """秘塔 Key 获取入口必须保留 MPT 追踪参数，避免赞助转化链路失效。"""
         expected_url = "https://metaso.cn/minimax-h3/?s=MPT"
 
-        for locale in ("zh", "en"):
+        for locale in ("zh", "en", "vi"):
             with self.subTest(locale=locale):
                 label = _load_translation(locale)["Metaso MiniMax API Key"]
                 self.assertEqual(_markdown_urls(label), {expected_url})
+
+    def test_vietnamese_locale_covers_all_english_keys_and_preserves_tokens(self):
+        """Vietnamese locale is a primary locale covering all English keys with valid tokens."""
+        en_translations = _load_translation("en")
+        vi_translations = _load_translation("vi")
+
+        self.assertEqual(sorted(set(en_translations) - set(vi_translations)), [])
+
+        for key, en_val in en_translations.items():
+            vi_val = vi_translations[key]
+            with self.subTest(key=key):
+                self.assertEqual(
+                    _format_placeholders(vi_val),
+                    _format_placeholders(en_val),
+                    f"Placeholder mismatch for {key}",
+                )
+                self.assertEqual(
+                    _markdown_urls(vi_val),
+                    _markdown_urls(en_val),
+                    f"Markdown URL mismatch for {key}",
+                )
 
     def test_secondary_locales_cover_english_locale(self):
         en_translations = _load_translation("en")
