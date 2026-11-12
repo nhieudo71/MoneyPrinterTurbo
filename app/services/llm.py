@@ -24,6 +24,9 @@ MIN_SCRIPT_PARAGRAPH_NUMBER = 1
 MAX_SCRIPT_PARAGRAPH_NUMBER = 10
 MAX_SCRIPT_PROMPT_LENGTH = 2000
 MAX_SCRIPT_SYSTEM_PROMPT_LENGTH = 8000
+LONG_VIDEO_DURATION_PRESETS = (5, 10, 15, 20, 30)
+STORYTELLING_WORDS_PER_MINUTE = 140
+MAX_STORY_DURATION_MINUTES = 60
 # “测试模型链接”只发送一条极小请求。OpenAI SDK 默认 600 秒超时并自动重试
 # 2 次，端点不可达（代理、防火墙或 DNS 故障）时，测试按钮会先长时间挂起，
 # 最后只留下一句 "Request timed out."（见 issue #1642）。这里给连接测试一个
@@ -68,6 +71,21 @@ Generate a script for a video, depending on the subject of the video.
 6. do not include "voiceover", "narrator" or similar indicators of what should be spoken at the beginning of each paragraph or line.
 7. you must not mention the prompt, or anything about the script itself. also, never talk about the amount of paragraphs or lines. just write the script.
 8. respond in the same language as the video subject.
+""".strip()
+
+STORYTELLING_SYSTEM_PROMPT = """
+# Role: Late-Night Storyteller & Literary Narrator
+
+## Goals:
+Create a deeply immersive, soothing, emotionally resonant story script for late-night listening and long-form storytelling videos.
+
+## Style & Constraints:
+1. Write in a warm, calm, unhurried, and evocative narrative voice suited for quiet late-night listening.
+2. Focus on rich sensory atmosphere, gentle pacing, vivid scenes, and heartfelt inner emotion rather than rushed plot summaries.
+3. Do NOT include any markdown, headings, chapter titles (e.g., "Chapter 1:", "Part 2:"), bullet points, or stage directions like [music] or (sighs).
+4. Do NOT include "Narrator:", "Voiceover:", or meta-commentary about the video, prompt, or length.
+5. Output ONLY pure spoken narration paragraphs separated by blank lines.
+6. Respond in the same language as the story subject (or the requested language if specified).
 """.strip()
 
 # Claude Code CLI 默认使用编码 agent 的系统提示词，其中大量约束与文案写作
@@ -888,12 +906,219 @@ def _normalize_script_paragraph_number(paragraph_number: int | None) -> int:
     return value
 
 
+def _normalize_target_duration_minutes(target_duration_minutes: int | None) -> int:
+    try:
+        value = int(target_duration_minutes or 0)
+    except (TypeError, ValueError):
+        return 0
+    if value <= 0:
+        return 0
+    return min(value, MAX_STORY_DURATION_MINUTES)
+
+
+def estimate_story_plan(target_duration_minutes: int) -> tuple[int, int]:
+    """Return (target_words, chapter_count) for a target narration duration in minutes."""
+    minutes = _normalize_target_duration_minutes(target_duration_minutes)
+    if minutes <= 0:
+        return 0, 1
+    target_words = max(150, minutes * STORYTELLING_WORDS_PER_MINUTE)
+    # Keep each LLM chapter around 350-420 words so models don't truncate or rush.
+    chapters = max(2, min(15, math.ceil(target_words / 420)))
+    return target_words, chapters
+
+
+def _clean_script_response(response: str) -> str:
+    # Clean the script
+    # Remove emphasis and heading markers without changing inline names
+    # or musical notes such as C#, F# and G#.
+    response = response.replace("*", "")
+    response = re.sub(
+        r"(?m)^[ \t]{0,3}#{1,6}[ \t]+(.*?)[ \t]*$",
+        lambda match: re.sub(r"[ \t]+#+[ \t]*$", "", match.group(1)),
+        response,
+    )
+
+    # Link labels are narration; discard destinations before stripping
+    # bracketed stage directions. Common parenthesized URL components fit.
+    response = re.sub(
+        r"\[([^\]\n]+)\]\((?:[^()\n]|\([^()\n]*\))*\)",
+        lambda match: match.group(1),
+        response,
+    )
+
+    # Remove markdown syntax. Use non-greedy .*? so each bracket/paren
+    # group is removed independently; the greedy form would eat all text
+    # between the first opener and the last closer on the same line.
+    response = re.sub(r"\[.*?\]", "", response)
+    response = re.sub(r"\(.*?\)", "", response)
+
+    paragraphs = [p.strip() for p in response.split("\n\n") if p.strip()]
+    return "\n\n".join(paragraphs)
+
+
+def _call_llm_for_text(prompt: str, app_config=None) -> str:
+    for i in range(_max_retries):
+        try:
+            if app_config is None:
+                response = _generate_response(prompt=prompt)
+            else:
+                response = _generate_response(prompt=prompt, app_config=app_config)
+            if isinstance(response, str) and response.startswith("Error: "):
+                raise ValueError(response)
+            if response:
+                candidate = _strip_code_fence(response).strip()
+            else:
+                logging.error("gpt returned an empty response")
+                candidate = ""
+
+            if candidate and "当日额度已消耗完" in candidate:
+                raise ValueError(candidate)
+
+            if candidate:
+                return candidate
+        except Exception as e:
+            logger.error(f"failed to generate llm text: {e}")
+
+        if i < _max_retries - 1:
+            logger.warning(f"failed to generate llm text, trying again... {i + 1}")
+    return ""
+
+
+def _parse_story_outline(raw_outline: str, chapter_count: int, subject: str) -> list[str]:
+    text = _strip_code_fence(raw_outline).strip()
+    try:
+        parsed = json.loads(text)
+        if isinstance(parsed, list):
+            items = [str(item).strip() for item in parsed if str(item).strip()]
+            if items:
+                return items[:chapter_count]
+    except Exception:
+        pass
+
+    # Fallback: parse numbered lines (e.g. "1. ...")
+    lines = []
+    for line in text.splitlines():
+        cleaned = re.sub(r"^\s*(?:\d+[\.\):]|[-*])\s*", "", line).strip()
+        if cleaned:
+            lines.append(cleaned)
+    if len(lines) >= chapter_count:
+        return lines[:chapter_count]
+    if lines:
+        while len(lines) < chapter_count:
+            lines.append(f"Continue and deepen the story about {subject}")
+        return lines
+
+    return [f"Part {idx + 1} of the story about {subject}" for idx in range(chapter_count)]
+
+
+def generate_long_story_script(
+    video_subject: str,
+    language: str = "",
+    target_duration_minutes: int = 10,
+    video_script_prompt: str = "",
+    custom_system_prompt: str = "",
+    app_config=None,
+) -> str:
+    """Generate a multi-chapter long-form narration script for 5-30+ minute storytelling videos."""
+    minutes = _normalize_target_duration_minutes(target_duration_minutes)
+    if minutes <= 0:
+        minutes = 10
+    target_words, chapter_count = estimate_story_plan(minutes)
+    words_per_chapter = max(250, round(target_words / chapter_count))
+
+    video_script_prompt = _limit_script_text(
+        video_script_prompt, MAX_SCRIPT_PROMPT_LENGTH, "video_script_prompt"
+    )
+    custom_system_prompt = _limit_script_text(
+        custom_system_prompt, MAX_SCRIPT_SYSTEM_PROMPT_LENGTH, "custom_system_prompt"
+    )
+
+    logger.info(
+        f"generating long story script: subject={video_subject}, "
+        f"target_duration={minutes}m, target_words={target_words}, chapters={chapter_count}"
+    )
+
+    outline_prompt = f"""
+You are planning a soothing, immersive {minutes}-minute late-night storytelling audio script (~{target_words} words total).
+Create a coherent {chapter_count}-part story outline for the subject below.
+Respond ONLY with a JSON array of {chapter_count} concise strings, each describing what happens in that part (atmosphere, emotion, and plot progression).
+Write the outline in the same language as the subject{f" (or {language})" if language else ""}.
+
+- Story subject: {video_subject}
+{f"- Additional requirements: {video_script_prompt}" if video_script_prompt else ""}
+""".strip()
+
+    raw_outline = _call_llm_for_text(outline_prompt, app_config=app_config)
+    outline = _parse_story_outline(raw_outline, chapter_count, video_subject)
+    outline_formatted = "\n".join(f"{idx + 1}. {desc}" for idx, desc in enumerate(outline))
+
+    base_system = custom_system_prompt or STORYTELLING_SYSTEM_PROMPT
+    story_parts: list[str] = []
+
+    for idx in range(chapter_count):
+        part_num = idx + 1
+        previous_tail = story_parts[-1][-800:] if story_parts else ""
+        if part_num == 1:
+            pacing_note = "This is the opening part: gently set the late-night atmosphere and draw the listener in."
+        elif part_num == chapter_count:
+            pacing_note = "This is the final part: bring the story to a warm, peaceful, lingering conclusion."
+        else:
+            pacing_note = (
+                "This is a middle part: continue seamlessly from the previous narration without repeating introductions "
+                "or summarizing the ending too early."
+            )
+
+        previous_context_block = (
+            f'- Previous narration ending (continue smoothly right after this, do NOT repeat it):\n"""\n{previous_tail}\n"""'
+            if previous_tail
+            else ""
+        )
+        chapter_prompt = f"""{base_system}
+
+# Story Plan:
+- Story subject: {video_subject}
+{f"- Language: {language}" if language else ""}
+- Overall outline:
+{outline_formatted}
+
+# Current Task:
+- Write ONLY Part {part_num} of {chapter_count}: "{outline[idx]}"
+- Target length for this part: approximately {words_per_chapter} words.
+- {pacing_note}
+{f"- Additional requirements: {video_script_prompt}" if video_script_prompt else ""}
+{previous_context_block}
+
+Remember: Output ONLY the raw spoken narration paragraphs for Part {part_num}. Do NOT output chapter titles like "Part {part_num}" or "Chương {part_num}".
+""".strip()
+
+        raw_part = _call_llm_for_text(chapter_prompt, app_config=app_config)
+        cleaned_part = _clean_script_response(raw_part).strip() if raw_part else ""
+        if cleaned_part:
+            story_parts.append(cleaned_part)
+            logger.info(
+                f"generated story part {part_num}/{chapter_count} ({len(cleaned_part.split())} words)"
+            )
+        else:
+            logger.warning(f"story part {part_num}/{chapter_count} returned empty")
+
+    final_script = "\n\n".join(story_parts).strip()
+    if final_script:
+        logger.success(
+            f"completed long story script: {len(story_parts)}/{chapter_count} parts, "
+            f"~{len(final_script.split())} words"
+        )
+    else:
+        logger.error("failed to generate long story script")
+    return final_script
+
+
 def build_script_prompt(
     video_subject: str,
     language: str = "",
     paragraph_number: int = 1,
     video_script_prompt: str = "",
     custom_system_prompt: str = "",
+    story_mode: bool = False,
 ) -> str:
     paragraph_number = _normalize_script_paragraph_number(paragraph_number)
     video_script_prompt = _limit_script_text(
@@ -905,7 +1130,8 @@ def build_script_prompt(
 
     # 将“脚本生成规则”和“运行时上下文”分开拼接。这样高级用户即使覆盖默认
     # system prompt，也不会漏掉视频主题、语言、段落数这些每次生成都必须带上的参数。
-    prompt = custom_system_prompt or DEFAULT_SCRIPT_SYSTEM_PROMPT
+    default_prompt = STORYTELLING_SYSTEM_PROMPT if story_mode else DEFAULT_SCRIPT_SYSTEM_PROMPT
+    prompt = custom_system_prompt or default_prompt
     prompt += f"""
 
 # Initialization:
@@ -931,7 +1157,20 @@ def generate_script(
     video_script_prompt: str = "",
     custom_system_prompt: str = "",
     app_config=None,
+    target_duration_minutes: int = 0,
+    story_mode: bool = False,
 ) -> str:
+    normalized_duration = _normalize_target_duration_minutes(target_duration_minutes)
+    if normalized_duration > 0:
+        return generate_long_story_script(
+            video_subject=video_subject,
+            language=language,
+            target_duration_minutes=normalized_duration,
+            video_script_prompt=video_script_prompt,
+            custom_system_prompt=custom_system_prompt,
+            app_config=app_config,
+        )
+
     paragraph_number = _normalize_script_paragraph_number(paragraph_number)
     video_script_prompt = _limit_script_text(
         video_script_prompt, MAX_SCRIPT_PROMPT_LENGTH, "video_script_prompt"
@@ -945,77 +1184,20 @@ def generate_script(
         paragraph_number=paragraph_number,
         video_script_prompt=video_script_prompt,
         custom_system_prompt=custom_system_prompt,
+        story_mode=story_mode,
     )
     final_script = ""
     logger.info(
         "generating video script: "
         f"subject={video_subject}, paragraph_number={paragraph_number}, "
+        f"story_mode={bool(story_mode)}, "
         f"has_custom_prompt={bool(video_script_prompt.strip())}, "
         f"has_custom_system_prompt={bool(custom_system_prompt.strip())}"
     )
 
-    def format_response(response):
-        # Clean the script
-        # Remove emphasis and heading markers without changing inline names
-        # or musical notes such as C#, F# and G#.
-        response = response.replace("*", "")
-        response = re.sub(
-            r"(?m)^[ \t]{0,3}#{1,6}[ \t]+(.*?)[ \t]*$",
-            lambda match: re.sub(r"[ \t]+#+[ \t]*$", "", match.group(1)),
-            response,
-        )
-
-        # Link labels are narration; discard destinations before stripping
-        # bracketed stage directions. Common parenthesized URL components fit.
-        response = re.sub(
-            r"\[([^\]\n]+)\]\((?:[^()\n]|\([^()\n]*\))*\)",
-            lambda match: match.group(1),
-            response,
-        )
-
-        # Remove markdown syntax.  Use non-greedy .*? so each bracket/paren
-        # group is removed independently; the greedy form would eat all text
-        # between the first opener and the last closer on the same line.
-        response = re.sub(r"\[.*?\]", "", response)
-        response = re.sub(r"\(.*?\)", "", response)
-
-        # Split the script into paragraphs
-        paragraphs = response.split("\n\n")
-
-        # Select the specified number of paragraphs
-        # selected_paragraphs = paragraphs[:paragraph_number]
-
-        # Join the selected paragraphs into a single string
-        return "\n\n".join(paragraphs)
-
-    for i in range(_max_retries):
-        try:
-            if app_config is None:
-                response = _generate_response(prompt=prompt)
-            else:
-                response = _generate_response(prompt=prompt, app_config=app_config)
-            if isinstance(response, str) and response.startswith("Error: "):
-                # _generate_response returns provider failures as text. Passing
-                # that text through would make the task treat it as narration.
-                raise ValueError(response)
-            if response:
-                candidate = format_response(_strip_code_fence(response)).strip()
-            else:
-                logging.error("gpt returned an empty response")
-                candidate = ""
-
-            # Some upstream providers may return quota errors as plain text.
-            if candidate and "当日额度已消耗完" in candidate:
-                raise ValueError(candidate)
-
-            if candidate:
-                final_script = candidate
-                break
-        except Exception as e:
-            logger.error(f"failed to generate script: {e}")
-
-        if i < _max_retries - 1:
-            logger.warning(f"failed to generate video script, trying again... {i + 1}")
+    raw_response = _call_llm_for_text(prompt=prompt, app_config=app_config)
+    if raw_response:
+        final_script = _clean_script_response(raw_response).strip()
     if not final_script:
         logger.error("failed to generate video script after retries")
     else:

@@ -786,6 +786,13 @@
     "VieNeu Reference Audio Help": "Upload a clean 3–10s audio sample (.wav/.mp3) to clone a custom voice instead of using the preset voice.",
     "VieNeu Reference Audio Path": "Reference Audio Path (Optional)",
     "VieNeu Reference Audio Path Placeholder": "Leave empty to use the selected preset voice",
-    "tts_provider_tips.vieneu": "**VieNeu-TTS Configuration**\n- **Local Vietnamese & Bilingual TTS**: Runs completely offline on your machine without any API key.\n- **CPU / GPU Selection**: Choose **Auto**, **CPU** (ONNX Runtime), or **GPU** (CUDA PyTorch).\n- **Model Modes**: **V3 Turbo** (48kHz studio quality, supports CPU & GPU) or **V3 Nano** (24kHz ultra-fast on CPU).\n- **Zero-Shot Voice Cloning**: Optionally upload or specify a 3–10s reference audio file to clone any voice."
+    "tts_provider_tips.vieneu": "**VieNeu-TTS Configuration**\n- **Local Vietnamese & Bilingual TTS**: Runs completely offline on your machine without any API key.\n- **CPU / GPU Selection**: Choose **Auto**, **CPU** (ONNX Runtime), or **GPU** (CUDA PyTorch).\n- **Model Modes**: **V3 Turbo** (48kHz studio quality, supports CPU & GPU) or **V3 Nano** (24kHz ultra-fast on CPU).\n- **Zero-Shot Voice Cloning**: Optionally upload or specify a 3–10s reference audio file to clone any voice.",
+    "Target Video Duration": "Target Video Duration",
+    "Target Video Duration Help": "Choose a preset duration (5 to 30 minutes) for long-form storytelling and late-night story reading.",
+    "Short Video (Default)": "Short Video (Default)",
+    "Long Story Duration Format": "{minutes} min (~{words} words)",
+    "Late-Night Storytelling Mode": "Late-Night Storytelling Mode",
+    "Late-Night Storytelling Mode Help": "Use a calm, warm, unhurried literary narrative voice suited for reading stories and late-night listening.",
+    "Long Story Estimate Caption": "Long story plan: ~{minutes} min narration (~{words} words across {chapters} connected parts). Clips will loop smoothly across the full story."
   }
 }

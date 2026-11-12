@@ -467,6 +467,19 @@ Batch manifests:
         help="transition applied between source clips (default: none)",
     )
     video_group.add_argument(
+        "--target-duration-minutes",
+        type=int,
+        choices=[0, 5, 10, 15, 20, 30],
+        default=None,
+        help="target long-story duration in minutes: 0 (short/default), 5, 10, 15, 20, or 30",
+    )
+    video_group.add_argument(
+        "--story-mode",
+        default=None,
+        action=argparse.BooleanOptionalAction,
+        help="enable late-night storytelling narration style (default: disabled)",
+    )
+    video_group.add_argument(
         "--video-clip-duration",
         type=_positive_int,
         default=None,
@@ -970,6 +983,8 @@ def build_video_params(args: argparse.Namespace) -> VideoParams:
     optional_arg_names = [
         "video_language",
         "paragraph_number",
+        "target_duration_minutes",
+        "story_mode",
         "video_script_prompt",
         "custom_system_prompt",
         "video_fit_mode",

@@ -786,6 +786,13 @@
     "VieNeu Reference Audio Help": "上传 3–10 秒清晰人声样本 (.wav/.mp3) 进行零样本声音克隆；留空则使用所选预置音色。",
     "VieNeu Reference Audio Path": "参考音频路径 (可选)",
     "VieNeu Reference Audio Path Placeholder": "留空则使用当前选择的预置音色",
-    "tts_provider_tips.vieneu": "**VieNeu-TTS 配置说明**\n- **本地越南语及双语语音合成**：完全在本机离线运行，无需配置 API Key。\n- **CPU / GPU 切换**：支持选择 **自动**、**CPU**（ONNX Runtime）或 **GPU**（CUDA PyTorch 加速）。\n- **模型模式**：提供 **V3 Turbo**（48kHz 高清音质，支持 CPU 与 GPU）和 **V3 Nano**（24kHz 轻量极速 CPU 模型）。\n- **零样本声音克隆**：可选上传或填写 3–10 秒参考音频路径以克隆任意声音，留空则使用内置预置音色。"
+    "tts_provider_tips.vieneu": "**VieNeu-TTS 配置说明**\n- **本地越南语及双语语音合成**：完全在本机离线运行，无需配置 API Key。\n- **CPU / GPU 切换**：支持选择 **自动**、**CPU**（ONNX Runtime）或 **GPU**（CUDA PyTorch 加速）。\n- **模型模式**：提供 **V3 Turbo**（48kHz 高清音质，支持 CPU 与 GPU）和 **V3 Nano**（24kHz 轻量极速 CPU 模型）。\n- **零样本声音克隆**：可选上传或填写 3–10 秒参考音频路径以克隆任意声音，留空则使用内置预置音色。",
+    "Target Video Duration": "目标视频时长",
+    "Target Video Duration Help": "选择长视频预设时长（5 至 30 分钟），适合长篇故事朗读与深夜故事频道。",
+    "Short Video (Default)": "短视频（默认）",
+    "Long Story Duration Format": "{minutes} 分钟（约 {words} 字/词）",
+    "Late-Night Storytelling Mode": "深夜讲故事模式",
+    "Late-Night Storytelling Mode Help": "使用舒缓、温暖、富有画面感的叙事文风，适合长篇故事朗读与睡前聆听。",
+    "Long Story Estimate Caption": "长故事规划：约 {minutes} 分钟旁白（共 {chapters} 段连贯章节，约 {words} 词）。视频素材将在全片时长内自动平滑循环。"
   }
 }

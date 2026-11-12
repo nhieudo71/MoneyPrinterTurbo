@@ -699,6 +699,14 @@ def _initialize_session_state():
             llm.MAX_SCRIPT_PARAGRAPH_NUMBER,
             int,
         ),
+        "target_duration_minutes_select": _saved_ui_number(
+            "target_duration_minutes",
+            0,
+            0,
+            60,
+            int,
+        ),
+        "story_mode_checkbox": bool(config.ui.get("story_mode", False)),
         "video_script_prompt": _saved_ui_text(
             "video_script_prompt",
             max_length=llm.MAX_SCRIPT_PROMPT_LENGTH,
@@ -5495,6 +5503,8 @@ def _render_local_script_generation(params):
                 video_script_prompt=params.video_script_prompt,
                 custom_system_prompt=params.custom_system_prompt,
                 app_config=app_config_snapshot,
+                target_duration_minutes=getattr(params, "target_duration_minutes", 0),
+                story_mode=getattr(params, "story_mode", False),
             )
             if not script:
                 # No keyword request for a script that was not generated.
@@ -5979,6 +5989,50 @@ def _render_script_settings(panel, params):
                             )
                         )
 
+            duration_options = [0, 5, 10, 15, 20, 30]
+            duration_col, story_col = st.columns([1.2, 1])
+            with duration_col:
+                params.target_duration_minutes = stable_selectbox(
+                    tr("Target Video Duration"),
+                    options=duration_options,
+                    index=saved_ui_option_index(
+                        "target_duration_minutes", duration_options, 0
+                    ),
+                    format_func=lambda m: (
+                        tr("Short Video (Default)")
+                        if m == 0
+                        else tr("Long Story Duration Format").format(
+                            minutes=m,
+                            words=llm.estimate_story_plan(m)[0],
+                        )
+                    ),
+                    key="target_duration_minutes_select",
+                    help=tr("Target Video Duration Help"),
+                )
+                _set_runtime_config(
+                    "ui", "target_duration_minutes", params.target_duration_minutes
+                )
+            with story_col:
+                st.write("")
+                params.story_mode = st.checkbox(
+                    tr("Late-Night Storytelling Mode"),
+                    key="story_mode_checkbox",
+                    help=tr("Late-Night Storytelling Mode Help"),
+                )
+                _set_runtime_config("ui", "story_mode", params.story_mode)
+
+            if params.target_duration_minutes > 0:
+                target_words, chapters = llm.estimate_story_plan(
+                    params.target_duration_minutes
+                )
+                st.caption(
+                    tr("Long Story Estimate Caption").format(
+                        minutes=params.target_duration_minutes,
+                        words=target_words,
+                        chapters=chapters,
+                    )
+                )
+
             # 模型发现只增强视频素材，不改变用户明确选择的文案 Provider。
             if _effective_script_generation_backend() == "loomloom":
                 _render_loomloom_script_generation(params)
@@ -6286,7 +6340,7 @@ def _render_video_settings(panel, params):
                     )
                 )
             else:
-                video_clip_durations = [2, 3, 4, 5, 6, 7, 8, 9, 10]
+                video_clip_durations = [2, 3, 4, 5, 6, 7, 8, 9, 10, 15, 20, 30]
             params.video_clip_duration = stable_selectbox(
                 tr("Clip Duration"),
                 options=video_clip_durations,

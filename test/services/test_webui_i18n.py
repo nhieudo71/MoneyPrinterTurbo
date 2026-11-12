@@ -227,6 +227,13 @@ ENGLISH_FALLBACK_KEYS = frozenset(
         "VoxCPM Prompt Pair Required",
         "VoxCPM Prompt Invalid",
         "None (Animation)",
+        "Target Video Duration",
+        "Target Video Duration Help",
+        "Short Video (Default)",
+        "Long Story Duration Format",
+        "Late-Night Storytelling Mode",
+        "Late-Night Storytelling Mode Help",
+        "Long Story Estimate Caption",
     }
 )
 FORMAT_PLACEHOLDER_PATTERN = re.compile(r"(?<!\{)\{([a-zA-Z_][a-zA-Z0-9_]*)\}(?!\})")

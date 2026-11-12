@@ -371,6 +371,8 @@ def generate_script(task_id, params):
             paragraph_number=params.paragraph_number,
             video_script_prompt=params.video_script_prompt,
             custom_system_prompt=params.custom_system_prompt,
+            target_duration_minutes=getattr(params, "target_duration_minutes", 0),
+            story_mode=getattr(params, "story_mode", False),
         )
     else:
         logger.debug(f"video script: \n{video_script}")
@@ -824,6 +826,19 @@ def get_video_materials(
         # 顺序匹配模式只在用户显式开启时生效。这里强制素材下载按关键词顺序
         # 轮询，避免某个早期关键词下载太多素材，把后续脚本主题挤出最终时间线。
         try:
+            requested_material_duration = audio_duration * params.video_count
+            # For long-form storytelling videos (4+ minutes), cap the stock download
+            # duration to ~3-5 minutes of diverse unique footage and let combine_videos
+            # smoothly loop the clips across the full narration timeline.
+            if requested_material_duration >= 240:
+                capped_duration = max(180, params.video_clip_duration * 15)
+                if requested_material_duration > capped_duration:
+                    logger.info(
+                        f"long video mode: capping stock download target from "
+                        f"{requested_material_duration}s to {capped_duration}s "
+                        f"(clips will loop seamlessly during video assembly)"
+                    )
+                    requested_material_duration = capped_duration
             downloaded_videos = material.download_videos(
                 task_id=task_id,
                 search_terms=video_terms,
@@ -834,7 +849,7 @@ def get_video_materials(
                     if params.match_materials_to_script
                     else params.video_concat_mode
                 ),
-                audio_duration=audio_duration * params.video_count,
+                audio_duration=requested_material_duration,
                 max_clip_duration=params.video_clip_duration,
                 clip_speed=params.video_clip_speed,
                 match_script_order=params.match_materials_to_script,

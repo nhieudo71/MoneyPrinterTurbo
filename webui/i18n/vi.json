@@ -780,6 +780,19 @@
     "llm_provider_tips.pollinations": "##### Cấu hình Pollinations AI\n- **Khóa API**: Nhập khóa nếu có hoặc để trống cho chế độ ẩn danh tại [Pollinations AI]({api_key_url})\n- **Base URL**: Mặc định là `{default_base_url}`\n- **Tên mô hình**: Mặc định là `{default_model}`. Xem [danh mục mô hình](https://gen.pollinations.ai/v1/models) để biết các mô hình có sẵn.",
     "llm_provider_tips.litellm": "##### Cấu hình LiteLLM\n- **Tên mô hình**: Mặc định là `{default_model}`. Xem [danh sách nhà cung cấp](https://docs.litellm.ai/docs/providers) để biết cách định dạng mô hình.",
     "llm_provider_tips.kimi_code": "##### Cấu hình Kimi Code\n- **Khóa API**: Đăng nhập bằng mã thiết bị hoặc lấy khóa từ [Kimi Code]({api_key_url})\n- Xem [Tài liệu Kimi Code]({model_docs_url}) để biết hướng dẫn sử dụng chi tiết.",
-    "llm_provider_tips.jalapeno": "##### Cấu hình Jalapeno Cloud\n- **Khóa API**: Lấy khóa API từ [Bảng điều khiển Jalapeno Cloud]({api_key_url})\n- **Base URL**: Mặc định là `{default_base_url}`\n- **Tên mô hình**: Mặc định là `{default_model}`\n- Xem [Tài liệu Jalapeno Cloud]({model_docs_url}) để biết các mô hình được hỗ trợ."
+    "llm_provider_tips.jalapeno": "##### Cấu hình Jalapeno Cloud\n- **Khóa API**: Lấy khóa API từ [Bảng điều khiển Jalapeno Cloud]({api_key_url})\n- **Base URL**: Mặc định là `{default_base_url}`\n- **Tên mô hình**: Mặc định là `{default_model}`\n- Xem [Tài liệu Jalapeno Cloud]({model_docs_url}) để biết các mô hình được hỗ trợ.",
+    "Target Video Duration": "Thời lượng video mục tiêu",
+    "Target Video Duration Help": "Chọn mức thời lượng (5 đến 30 phút) để tạo video dài đọc truyện hoặc kể chuyện đêm khuya.",
+    "Short Video (Default)": "Video ngắn (Mặc định)",
+    "Long Story Duration Format": "{minutes} phút (~{words} từ)",
+    "Late-Night Storytelling Mode": "Chế độ kể chuyện đêm khuya",
+    "Late-Night Storytelling Mode Help": "Sử dụng giọng văn trầm ấm, sâu lắng, nhịp kể chậm rãi và giàu cảm xúc phù hợp để đọc truyện, kể chuyện đêm khuya.",
+    "Long Story Estimate Caption": "Kế hoạch truyện dài: ~{minutes} phút đọc (~{words} từ, chia {chapters} phần liền mạch). Hình nền sẽ tự động lặp mượt mà theo toàn bộ câu chuyện.",
+    "llm_provider_label.apinebula": "APINEBULA",
+    "llm_provider_label.apixo": "APIXO AI",
+    "llm_provider_label.uberllm": "UberLLM",
+    "llm_provider_tips.apinebula": "##### Cấu hình APINEBULA\n- **Khóa API**: Đăng ký qua [liên kết giới thiệu]({api_key_url}) và tạo khóa trong bảng điều khiển\n- **Base URL**: Mặc định là {default_base_url}; không bao gồm đường dẫn đầy đủ /chat/completions\n- **Tên mô hình**: Mặc định là {default_model}; xem [danh sách mô hình]({model_docs_url}) để biết các ID mô hình khác khả dụng cho tài khoản của bạn\n\nAPINEBULA tài trợ cho MoneyPrinterTurbo và cung cấp API tương thích OpenAI để tạo kịch bản video và từ khóa tìm kiếm tư liệu. Nhập mã khuyến mãi **MPT** khi nạp tiền để được giảm 10%.",
+    "llm_provider_tips.apixo": "##### Cấu hình APIXO AI\n- **Khóa API**: Tạo khóa trong [bảng điều khiển APIXO]({api_key_url})\n- **Base URL**: Mặc định là {default_base_url}; không thêm /responses\n- **Tên mô hình**: Mặc định là {default_model}; chọn mô hình GPT từ [danh sách mô hình Responses]({model_docs_url})\n\nSử dụng OpenAI Responses API để tạo kịch bản video và từ khóa tìm kiếm tư liệu. Các mô hình Claude và Gemini yêu cầu giao thức khác và không thể sử dụng với nhà cung cấp này.",
+    "llm_provider_tips.uberllm": "##### Cấu hình UberLLM\n- **Khóa API**: Đăng ký và tạo khóa API tại [UberLLM]({api_key_url})\n- **Base URL**: Mặc định là {default_base_url}\n- **Tên mô hình**: Mặc định là {default_model}; xem [danh sách mô hình]({model_docs_url}) để biết các ID mô hình khác theo dạng provider/model\n\nUberLLM là API trả phí theo mức sử dụng tương thích OpenAI: một khóa API phục vụ các mô hình từ nhiều phòng lab (GPT, Claude, Gemini, DeepSeek, Qwen, Kimi và nhiều hơn nữa). Đây là dịch vụ trả trước; không có gói miễn phí."
   }
 }
