@@ -259,6 +259,7 @@ _RUNTIME_CONFIG_SECTIONS = {
     "siliconflow": config.siliconflow,
     "fish_audio": config.fish_audio,
     "voxcpm": config.voxcpm,
+    "vieneu": config.vieneu,
     "ui": config.ui,
 }
 # 设置预设与密钥备份使用各自的文件标识。导入时先校验 schema 和版本，
@@ -6741,6 +6742,8 @@ def _estimate_voiceover_duration_range(
 
 def _get_voice_preview_sample(voice_name: str) -> str:
     """返回适合当前音色的短试听文案，不使用用户的完整视频文案。"""
+    if voice.is_vieneu_voice(voice_name):
+        return "Xin chào, đây là đoạn âm thanh thử nghiệm giọng nói tiếng Việt của VieNeu TTS."
     # ElevenLabs 音色缺少明确语言字段时，根据展示名称中的越南语字符选择
     # 试听文案，避免用明显不匹配的语言判断音色效果。
     if voice.is_elevenlabs_voice(voice_name):
@@ -7070,6 +7073,16 @@ def _get_voice_preview_provider_signature(tts_server: str) -> dict:
                 if st.session_state.get(VOXCPM_HIGH_FIDELITY_SESSION_KEY, False)
                 else ""
             ),
+        }
+    if tts_server == "vieneu":
+        vieneu_cfg = getattr(config, "vieneu", {})
+        if not isinstance(vieneu_cfg, dict):
+            vieneu_cfg = {}
+        return {
+            "device": str(vieneu_cfg.get("device", "auto") or "auto"),
+            "mode": str(vieneu_cfg.get("mode", "v3turbo") or "v3turbo"),
+            "precision": str(vieneu_cfg.get("precision", "fp32") or "fp32"),
+            "ref_audio": str(vieneu_cfg.get("ref_audio", "") or "").strip(),
         }
     return {}
 
@@ -7980,6 +7993,7 @@ def _render_audio_settings(panel, params):
                 ("kokoro", "Kokoro TTS"),
                 ("fish_audio", "Fish Audio TTS"),
                 ("voxcpm", "VoxCPM TTS"),
+                ("vieneu", "VieNeu-TTS (Local CPU/GPU)"),
             ]
 
             tts_server_values = [server_value for server_value, _ in tts_servers]
@@ -8015,6 +8029,126 @@ def _render_audio_settings(panel, params):
             minimax_voice_labels = {}
             if tts_mode_enabled and selected_tts_server == "minimax-tts":
                 minimax_voices, minimax_voice_labels = _render_minimax_tts_settings()
+
+            selected_vieneu_mode = (
+                config.vieneu.get("mode", voice.VIENEU_DEFAULT_MODE)
+                if hasattr(config, "vieneu") and isinstance(config.vieneu, dict)
+                else voice.VIENEU_DEFAULT_MODE
+            )
+            if tts_mode_enabled and selected_tts_server == "vieneu":
+                vieneu_cfg = (
+                    config.vieneu
+                    if hasattr(config, "vieneu") and isinstance(config.vieneu, dict)
+                    else {}
+                )
+                cuda_available = voice.is_vieneu_cuda_available()
+                vieneu_device_options = list(voice.VIENEU_DEVICES)
+                saved_vieneu_device = str(
+                    vieneu_cfg.get("device", voice.VIENEU_DEFAULT_DEVICE)
+                    or voice.VIENEU_DEFAULT_DEVICE
+                ).lower()
+                if saved_vieneu_device not in vieneu_device_options:
+                    saved_vieneu_device = voice.VIENEU_DEFAULT_DEVICE
+
+                vieneu_device_labels = {
+                    "auto": tr("VieNeu Device Auto"),
+                    "cpu": tr("VieNeu Device CPU"),
+                    "cuda": tr("VieNeu Device GPU"),
+                }
+                vieneu_mode_options = list(voice.VIENEU_MODES)
+                saved_vieneu_mode = str(
+                    vieneu_cfg.get("mode", voice.VIENEU_DEFAULT_MODE)
+                    or voice.VIENEU_DEFAULT_MODE
+                ).lower()
+                if saved_vieneu_mode not in vieneu_mode_options:
+                    saved_vieneu_mode = voice.VIENEU_DEFAULT_MODE
+
+                vieneu_mode_labels = {
+                    "v3turbo": tr("VieNeu Mode V3 Turbo"),
+                    "v3nano": tr("VieNeu Mode V3 Nano"),
+                }
+
+                vieneu_cols = st.columns(2)
+                with vieneu_cols[0]:
+                    selected_vieneu_device = stable_selectbox(
+                        tr("VieNeu Compute Device"),
+                        options=vieneu_device_options,
+                        default_value=saved_vieneu_device,
+                        key="vieneu_device_select",
+                        format_func=lambda v: vieneu_device_labels.get(v, v),
+                        help=(
+                            tr("VieNeu GPU Available Hint")
+                            if cuda_available
+                            else tr("VieNeu GPU Unavailable Hint")
+                        ),
+                    )
+                    _set_runtime_config("vieneu", "device", selected_vieneu_device)
+
+                with vieneu_cols[1]:
+                    selected_vieneu_mode = stable_selectbox(
+                        tr("VieNeu Model Mode"),
+                        options=vieneu_mode_options,
+                        default_value=saved_vieneu_mode,
+                        key="vieneu_mode_select",
+                        format_func=lambda v: vieneu_mode_labels.get(v, v),
+                    )
+                    _set_runtime_config("vieneu", "mode", selected_vieneu_mode)
+
+                if selected_vieneu_mode == "v3turbo":
+                    vieneu_precision_options = list(voice.VIENEU_PRECISIONS)
+                    saved_vieneu_precision = str(
+                        vieneu_cfg.get("precision", voice.VIENEU_DEFAULT_PRECISION)
+                        or voice.VIENEU_DEFAULT_PRECISION
+                    ).lower()
+                    if saved_vieneu_precision not in vieneu_precision_options:
+                        saved_vieneu_precision = voice.VIENEU_DEFAULT_PRECISION
+                    vieneu_precision_labels = {
+                        "fp32": tr("VieNeu Precision FP32"),
+                        "int8": tr("VieNeu Precision INT8"),
+                    }
+                    selected_vieneu_precision = stable_selectbox(
+                        tr("VieNeu Precision"),
+                        options=vieneu_precision_options,
+                        default_value=saved_vieneu_precision,
+                        key="vieneu_precision_select",
+                        format_func=lambda v: vieneu_precision_labels.get(v, v),
+                    )
+                    _set_runtime_config("vieneu", "precision", selected_vieneu_precision)
+
+                saved_vieneu_ref_audio = str(
+                    vieneu_cfg.get("ref_audio", "") or ""
+                ).strip()
+                uploaded_vieneu_ref = st.file_uploader(
+                    tr("VieNeu Reference Audio"),
+                    type=["wav", "mp3", "m4a", "flac", "ogg"],
+                    key="vieneu_ref_audio_uploader",
+                    help=tr("VieNeu Reference Audio Help"),
+                )
+                if uploaded_vieneu_ref is not None:
+                    try:
+                        ref_dir = utils.storage_dir("vieneu_refs", create=True)
+                        saved_ref_path = _build_uploaded_file_path(
+                            uploaded_vieneu_ref,
+                            ref_dir,
+                            CUSTOM_AUDIO_EXTENSIONS,
+                            "vieneu-ref",
+                        )
+                        with open(saved_ref_path, "wb") as ref_f:
+                            ref_f.write(uploaded_vieneu_ref.getbuffer())
+                        _set_runtime_config("vieneu", "ref_audio", saved_ref_path)
+                        saved_vieneu_ref_audio = saved_ref_path
+                    except Exception as exc:
+                        logger.warning(f"failed to save VieNeu reference audio: {exc}")
+
+                vieneu_ref_path_input = st.text_input(
+                    tr("VieNeu Reference Audio Path"),
+                    value=saved_vieneu_ref_audio,
+                    key="vieneu_ref_audio_path_input",
+                    placeholder=tr("VieNeu Reference Audio Path Placeholder"),
+                )
+                _set_runtime_config(
+                    "vieneu", "ref_audio", (vieneu_ref_path_input or "").strip()
+                )
 
             # 根据选择的TTS服务器获取声音列表
             filtered_voices = []
@@ -8057,6 +8191,8 @@ def _render_audio_settings(panel, params):
                 filtered_voices = voice.get_fish_audio_voices()
             elif selected_tts_server == "voxcpm":
                 filtered_voices = voice.get_voxcpm_voices()
+            elif selected_tts_server == "vieneu":
+                filtered_voices = voice.get_vieneu_voices(selected_vieneu_mode)
             else:
                 # 获取Azure的声音列表
                 all_voices = voice.get_all_azure_voices(filter_locals=None)
@@ -8092,6 +8228,8 @@ def _render_audio_settings(panel, params):
                     )
                 if voice.is_voxcpm_voice(v):
                     return v.split(":", 1)[1] or DEFAULT_VOXCPM_VOICE
+                if voice.is_vieneu_voice(v):
+                    return voice.get_vieneu_voice_label(v, selected_vieneu_mode)
                 return (
                     v.replace("Female", tr("Female"))
                     .replace("Male", tr("Male"))

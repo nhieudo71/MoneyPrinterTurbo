@@ -60,6 +60,21 @@ Issues = "https://github.com/harry0703/MoneyPrinterTurbo/issues"
 twelvelabs = [
     "twelvelabs>=1.2.8",
 ]
+vieneu = [
+    "numpy>=1.26.0,<3.0.0",
+    "soundfile>=0.12.1",
+    "onnxruntime>=1.17.0",
+    "sea-g2p>=0.1.0",
+    "huggingface_hub>=0.23.0",
+    "kaldi-native-fbank>=1.19.0",
+    "soxr>=0.3.7",
+]
+vieneu-gpu = [
+    "torch>=2.5.1",
+    "torchaudio>=2.5.1",
+    "transformers>=4.45.0",
+    "librosa>=0.10.2",
+]
 
 [dependency-groups]
 dev = [
@@ -89,7 +104,7 @@ show_missing = true
 skip_covered = true
 
 [tool.hatch.build.targets.wheel]
-packages = ["app", "webui"]
+packages = ["app", "webui", "vieneu", "vieneu_utils"]
 
 # 字体保留中英文默认字体和越南语字体。两个大体积备用字重不进入安装包，
 # 避免 wheel 超过 PyPI 默认文件大小限制；源码版的字体文件保持原样。
@@ -112,7 +127,8 @@ exclude = ["**/.DS_Store", "**/__pycache__", "**/*.pyc", "**/.streamlit"]
 [tool.hatch.build.targets.sdist]
 # 使用白名单，禁止本机配置、凭据、storage、AGENTS.md 等混入源码发行包。
 include = [
-    "/app", "/cli.py", "/webui", "/config.example.toml", "/pyproject.toml",
+    "/app", "/cli.py", "/webui", "/vieneu", "/vieneu_utils",
+    "/config.example.toml", "/pyproject.toml",
     "/uv.lock", "/LICENSE", "/docs/pypi-description.md", "/docs/packaging.md",
     "/test/services/test_packaging.py", "/resource/songs", "/resource/public",
     "/resource/fonts/STHeitiMedium.ttc", "/resource/fonts/MicrosoftYaHeiBold.ttc",

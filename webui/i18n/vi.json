@@ -506,6 +506,22 @@
     "Configure Providers": "Cấu hình",
     "Active Provider": "Đang sử dụng: {provider}",
     "No Configured Providers": "Chưa có nhà cung cấp nào được cấu hình.",
-    "Provider Configuration Changed": "Cấu hình đã thay đổi. Hãy kiểm tra cài đặt của nhà cung cấp này."
+    "Provider Configuration Changed": "Cấu hình đã thay đổi. Hãy kiểm tra cài đặt của nhà cung cấp này.",
+    "VieNeu Compute Device": "Thiết bị xử lý (CPU / GPU)",
+    "VieNeu Device Auto": "Tự động (Ưu tiên GPU nếu có, tự chuyển về CPU)",
+    "VieNeu Device CPU": "CPU (ONNX Runtime)",
+    "VieNeu Device GPU": "GPU (CUDA / PyTorch)",
+    "VieNeu GPU Available Hint": "Đã phát hiện GPU NVIDIA CUDA sẵn sàng tăng tốc.",
+    "VieNeu GPU Unavailable Hint": "Không phát hiện GPU CUDA; nếu chọn GPU hoặc Tự động hệ thống sẽ tự chuyển sang CPU.",
+    "VieNeu Model Mode": "Chế độ mô hình VieNeu",
+    "VieNeu Mode V3 Turbo": "V3 Turbo (48kHz Chất lượng cao - CPU/GPU)",
+    "VieNeu Mode V3 Nano": "V3 Nano (24kHz Siêu nhanh - CPU)",
+    "VieNeu Precision": "Độ chính xác mô hình (ONNX CPU)",
+    "VieNeu Precision FP32": "FP32 (Độ chính xác tiêu chuẩn)",
+    "VieNeu Precision INT8": "INT8 (Lượng tử hóa - Nhanh hơn trên CPU)",
+    "VieNeu Reference Audio": "Âm thanh mẫu VieNeu để nhân bản giọng (Tùy chọn)",
+    "VieNeu Reference Audio Help": "Tải lên đoạn âm thanh mẫu rõ nét 3–10 giây (.wav/.mp3) để nhân bản giọng nói tùy chỉnh thay vì dùng giọng dựng sẵn.",
+    "VieNeu Reference Audio Path": "Đường dẫn file âm thanh mẫu (Tùy chọn)",
+    "VieNeu Reference Audio Path Placeholder": "Để trống để sử dụng giọng đọc có sẵn đã chọn"
   }
 }

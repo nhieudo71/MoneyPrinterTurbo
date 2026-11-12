@@ -2963,6 +2963,62 @@ class TestElevenLabsVoice(unittest.TestCase):
             called_text = mock_single.call_args[1].get("text") or mock_single.call_args[0][0]
             self.assertEqual(called_text, original_text)
 
+    def test_get_vieneu_voices_and_labels(self):
+        voices_turbo = vs.get_vieneu_voices("v3turbo")
+        voices_nano = vs.get_vieneu_voices("v3nano")
+        self.assertGreater(len(voices_turbo), 0)
+        self.assertGreater(len(voices_nano), 0)
+        self.assertTrue(all(vs.is_vieneu_voice(v) for v in voices_turbo))
+        self.assertFalse(vs.is_azure_v1_voice(voices_turbo[0]))
+        label = vs.get_vieneu_voice_label(voices_turbo[0], "v3turbo")
+        self.assertTrue(bool(label))
+
+    def test_vieneu_tts_dispatches_and_synthesizes_with_cpu_or_gpu(self):
+        import numpy as np
+
+        class _FakeVieNeuEngine:
+            def __init__(self):
+                self.sample_rate = 24000
+                self.infer_calls = []
+
+            def list_preset_voices(self):
+                return [("Giọng mẫu", "Hải Đăng")]
+
+            def get_preset_voice(self, voice_id):
+                return {"id": voice_id}
+
+            def infer(self, text, voice=None, ref_audio=None):
+                self.infer_calls.append((text, voice, ref_audio))
+                t = np.linspace(0, 0.5, int(self.sample_rate * 0.5), endpoint=False)
+                return (0.2 * np.sin(2 * np.pi * 440.0 * t)).astype(np.float32)
+
+            def save(self, audio, output_path):
+                import soundfile as sf
+
+                sf.write(str(output_path), audio, self.sample_rate)
+
+        fake_engine = _FakeVieNeuEngine()
+        with tempfile.TemporaryDirectory() as tmp_dir:
+            out_mp3 = str(Path(tmp_dir) / "vieneu_out.mp3")
+            with (
+                patch.dict(vs.config.vieneu, {"device": "cpu", "mode": "v3turbo", "precision": "fp32", "ref_audio": ""}, clear=False),
+                patch.object(vs, "_get_or_create_vieneu_engine", return_value=fake_engine) as mock_get_engine,
+            ):
+                sub_maker = vs.tts(
+                    text="Xin chào Việt Nam.",
+                    voice_name="vieneu:Hải Đăng",
+                    voice_rate=1.0,
+                    voice_file=out_mp3,
+                    voice_volume=1.0,
+                )
+            self.assertIsNotNone(sub_maker)
+            self.assertTrue(os.path.exists(out_mp3))
+            self.assertGreater(os.path.getsize(out_mp3), 0)
+            mock_get_engine.assert_called_once()
+            self.assertEqual(len(fake_engine.infer_calls), 1)
+            self.assertEqual(fake_engine.infer_calls[0][1], "Hải Đăng")
+            self.assertGreater(vs.get_audio_duration(sub_maker), 0)
+
 
 if __name__ == "__main__":
     # python -m unittest test.services.test_voice.TestVoiceService.test_azure_tts_v1

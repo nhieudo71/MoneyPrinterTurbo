@@ -763,6 +763,23 @@
     "Configure Providers": "配置",
     "Active Provider": "正在使用：{provider}",
     "No Configured Providers": "尚未配置服务商。",
-    "Provider Configuration Changed": "配置已更改，请检查该服务商的设置。"
+    "Provider Configuration Changed": "配置已更改，请检查该服务商的设置。",
+    "VieNeu Compute Device": "计算设备 (CPU / GPU)",
+    "VieNeu Device Auto": "自动 (优先使用 GPU，不可用时回退 CPU)",
+    "VieNeu Device CPU": "CPU (ONNX Runtime)",
+    "VieNeu Device GPU": "GPU (CUDA / PyTorch)",
+    "VieNeu GPU Available Hint": "已检测到 NVIDIA CUDA GPU，可用于硬件加速。",
+    "VieNeu GPU Unavailable Hint": "未检测到 CUDA GPU；选择 GPU 或自动时将自动回退至 CPU 运行。",
+    "VieNeu Model Mode": "VieNeu 模型模式",
+    "VieNeu Mode V3 Turbo": "V3 Turbo (48kHz 高音质 - 支持 CPU/GPU)",
+    "VieNeu Mode V3 Nano": "V3 Nano (24kHz 极速轻量 - 仅 CPU)",
+    "VieNeu Precision": "模型精度 (ONNX CPU)",
+    "VieNeu Precision FP32": "FP32 (标准精度)",
+    "VieNeu Precision INT8": "INT8 (量化加速 - CPU 更快)",
+    "VieNeu Reference Audio": "VieNeu 参考音频 / 声音克隆 (可选)",
+    "VieNeu Reference Audio Help": "上传 3–10 秒清晰人声样本 (.wav/.mp3) 进行零样本声音克隆；留空则使用所选预置音色。",
+    "VieNeu Reference Audio Path": "参考音频路径 (可选)",
+    "VieNeu Reference Audio Path Placeholder": "留空则使用当前选择的预置音色",
+    "tts_provider_tips.vieneu": "**VieNeu-TTS 配置说明**\n- **本地越南语及双语语音合成**：完全在本机离线运行，无需配置 API Key。\n- **CPU / GPU 切换**：支持选择 **自动**、**CPU**（ONNX Runtime）或 **GPU**（CUDA PyTorch 加速）。\n- **模型模式**：提供 **V3 Turbo**（48kHz 高清音质，支持 CPU 与 GPU）和 **V3 Nano**（24kHz 轻量极速 CPU 模型）。\n- **零样本声音克隆**：可选上传或填写 3–10 秒参考音频路径以克隆任意声音，留空则使用内置预置音色。"
   }
 }

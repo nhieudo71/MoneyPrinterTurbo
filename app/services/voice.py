@@ -395,6 +395,140 @@ def get_voxcpm_voices(voice_id: str | None = None) -> list[str]:
     return [f"voxcpm:{voice_id}"]
 
 
+VIENEU_DEFAULT_MODE = "v3turbo"
+VIENEU_DEFAULT_DEVICE = "auto"
+VIENEU_DEFAULT_PRECISION = "fp32"
+VIENEU_MODES = ("v3turbo", "v3nano")
+VIENEU_DEVICES = ("auto", "cpu", "cuda")
+VIENEU_PRECISIONS = ("fp32", "int8")
+_VIENEU_EXTERNAL_SRC_DIR = r"E:\Videos\VieNeu-TTS\src"
+_vieneu_presets_cache: dict[str, dict] = {}
+_vieneu_engine_lock = threading.Lock()
+_vieneu_engine_cache: dict[tuple[str, str, str, str], object] = {}
+
+
+def _ensure_vieneu_importable() -> None:
+    """Ensure local/vendored `vieneu` and `vieneu_utils` packages are on sys.path."""
+    import sys
+
+    project_root = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+    for candidate in (project_root, _VIENEU_EXTERNAL_SRC_DIR):
+        if candidate and os.path.isdir(candidate) and candidate not in sys.path:
+            sys.path.insert(0, candidate)
+
+
+def _normalize_vieneu_mode(mode: str | None = None) -> str:
+    raw = str(
+        mode
+        or (config.vieneu.get("mode", VIENEU_DEFAULT_MODE) if hasattr(config, "vieneu") else VIENEU_DEFAULT_MODE)
+        or VIENEU_DEFAULT_MODE
+    ).strip().lower()
+    if raw in ("v3_nano", "nano", "v3nano"):
+        return "v3nano"
+    return "v3turbo"
+
+
+def _normalize_vieneu_device(device: str | None = None) -> str:
+    raw = str(
+        device
+        or (config.vieneu.get("device", VIENEU_DEFAULT_DEVICE) if hasattr(config, "vieneu") else VIENEU_DEFAULT_DEVICE)
+        or VIENEU_DEFAULT_DEVICE
+    ).strip().lower()
+    if raw in ("cpu", "cuda", "auto"):
+        return raw
+    if raw == "gpu":
+        return "cuda"
+    return "auto"
+
+
+def _normalize_vieneu_precision(precision: str | None = None) -> str:
+    raw = str(
+        precision
+        or (config.vieneu.get("precision", VIENEU_DEFAULT_PRECISION) if hasattr(config, "vieneu") else VIENEU_DEFAULT_PRECISION)
+        or VIENEU_DEFAULT_PRECISION
+    ).strip().lower()
+    if raw in ("fp32", "int8"):
+        return raw
+    return "fp32"
+
+
+def is_vieneu_cuda_available() -> bool:
+    """Check whether PyTorch with CUDA is available in the current Python runtime."""
+    try:
+        import torch
+
+        return bool(torch.cuda.is_available())
+    except Exception:
+        return False
+
+
+def _load_vieneu_presets_data(mode: str | None = None) -> dict:
+    norm_mode = _normalize_vieneu_mode(mode)
+    if norm_mode in _vieneu_presets_cache:
+        return _vieneu_presets_cache[norm_mode]
+
+    filename = "voices_v3_nano.json" if norm_mode == "v3nano" else "voices_v3_turbo.json"
+    project_root = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+    candidates = [
+        os.path.join(project_root, "vieneu", "assets", filename),
+        os.path.join(_VIENEU_EXTERNAL_SRC_DIR, "vieneu", "assets", filename),
+    ]
+    for path in candidates:
+        if os.path.isfile(path):
+            try:
+                with open(path, "r", encoding="utf-8") as f:
+                    data = json.load(f)
+                if isinstance(data, dict):
+                    _vieneu_presets_cache[norm_mode] = data
+                    return data
+            except Exception as exc:
+                logger.warning(f"Failed to read VieNeu voices file {path}: {exc}")
+
+    return {"default_voice": "Hải Đăng" if norm_mode == "v3turbo" else "Minh Quân", "presets": {}}
+
+
+def get_vieneu_voice_catalog(mode: str | None = None) -> list[tuple[str, str]]:
+    """Return `[(voice_id, display_label), ...]` for the given VieNeu mode without loading heavy weights."""
+    data = _load_vieneu_presets_data(mode)
+    presets = data.get("presets", {}) if isinstance(data, dict) else {}
+    if not isinstance(presets, dict) or not presets:
+        default_voice = str(data.get("default_voice", "Hải Đăng") or "Hải Đăng")
+        return [(default_voice, default_voice)]
+
+    def _sort_key(item):
+        vid, meta = item
+        feat = meta.get("featured") if isinstance(meta, dict) else None
+        return (0 if feat is not None else 1, feat if feat is not None else 9999, str(vid))
+
+    catalog: list[tuple[str, str]] = []
+    for vid, meta in sorted(presets.items(), key=_sort_key):
+        if not isinstance(meta, dict):
+            catalog.append((str(vid), str(vid)))
+            continue
+        desc = str(meta.get("description", "") or "").strip()
+        badge = "⭐ " if meta.get("featured") is not None else ""
+        label = f"{badge}{vid} — {desc}" if desc else f"{badge}{vid}"
+        catalog.append((str(vid), label))
+    return catalog
+
+
+def get_vieneu_voices(mode: str | None = None) -> list[str]:
+    """Return VieNeu voice IDs formatted as `['vieneu:<voice_id>', ...]`."""
+    catalog = get_vieneu_voice_catalog(mode)
+    return [f"vieneu:{vid}" for vid, _ in catalog]
+
+
+def get_vieneu_voice_label(voice_name: str, mode: str | None = None) -> str:
+    """Return a friendly display label for `vieneu:<voice_id>`."""
+    raw = str(voice_name or "").strip()
+    vid = raw.split(":", 1)[1].strip() if raw.startswith("vieneu:") else raw
+    for candidate_mode in ([mode] if mode else [None, "v3turbo", "v3nano"]):
+        for item_id, label in get_vieneu_voice_catalog(candidate_mode):
+            if item_id == vid:
+                return label
+    return vid or "Hải Đăng"
+
+
 _AZURE_VOICES_DATA_FILE = os.path.join(
     os.path.dirname(__file__), "data", "azure_voices.json"
 )
@@ -503,6 +637,10 @@ def is_voxcpm_voice(voice_name: str | None) -> bool:
     return (voice_name or "").startswith("voxcpm:")
 
 
+def is_vieneu_voice(voice_name: str | None) -> bool:
+    return (voice_name or "").startswith("vieneu:")
+
+
 def get_fish_audio_api_key() -> str:
     configured_key = str(config.fish_audio.get("api_key", "") if hasattr(config, "fish_audio") and isinstance(config.fish_audio, dict) else "").strip()
     return configured_key or os.getenv("FISH_API_KEY", "").strip()
@@ -550,6 +688,8 @@ def is_azure_v1_voice(voice_name: str | None) -> bool:
     if is_fish_audio_voice(name):
         return False
     if is_voxcpm_voice(name):
+        return False
+    if is_vieneu_voice(name):
         return False
     return True
 
@@ -788,6 +928,12 @@ def _single_tts(
                 prompt_text=voxcpm_prompt_text,
             )
         logger.error(f"Invalid VoxCPM voice name format: {voice_name}")
+        return None
+    elif is_vieneu_voice(voice_name):
+        voice_id = voice_name.split(":", 1)[1].strip()
+        if voice_id:
+            return vieneu_tts(text, voice_id, voice_file, voice_rate, voice_volume)
+        logger.error(f"Invalid VieNeu voice name format: {voice_name}")
         return None
     return azure_tts_v1(text, voice_name, voice_rate, voice_file)
 
@@ -3462,6 +3608,245 @@ def voxcpm_tts(
                     logger.warning(f"could not remove temporary VoxCPM audio: {exc}")
 
     return None
+
+
+def _build_ffmpeg_atempo_filter(speed: float) -> str:
+    """Build chained FFmpeg `atempo` filters for any positive speed factor."""
+    try:
+        remaining = float(speed)
+    except (TypeError, ValueError):
+        return ""
+    if not math.isfinite(remaining) or remaining <= 0 or abs(remaining - 1.0) < 1e-3:
+        return ""
+    filters: list[str] = []
+    while remaining > 2.0:
+        filters.append("atempo=2.0")
+        remaining /= 2.0
+    while remaining < 0.5:
+        filters.append("atempo=0.5")
+        remaining /= 0.5
+    if abs(remaining - 1.0) >= 1e-3:
+        filters.append(f"atempo={remaining:.4f}")
+    return ",".join(filters)
+
+
+def _get_or_create_vieneu_engine(
+    mode: str,
+    device: str,
+    precision: str,
+    backbone_repo: str = "",
+    hf_token: str = "",
+):
+    """Load or return cached VieNeu-TTS instance, with automatic GPU -> CPU fallback."""
+    _ensure_vieneu_importable()
+    from vieneu import Vieneu
+
+    norm_mode = _normalize_vieneu_mode(mode)
+    norm_device = _normalize_vieneu_device(device)
+    norm_precision = _normalize_vieneu_precision(precision)
+    repo = str(backbone_repo or "").strip()
+    token = str(hf_token or "").strip() or None
+
+    if norm_mode == "v3nano":
+        effective_device = "cpu"
+    elif norm_device == "auto":
+        effective_device = "cuda" if is_vieneu_cuda_available() else "cpu"
+    elif norm_device == "cuda" and not is_vieneu_cuda_available():
+        logger.warning(
+            "VieNeu-TTS configured for GPU (CUDA), but CUDA is not available; falling back to CPU (ONNX)."
+        )
+        effective_device = "cpu"
+    else:
+        effective_device = norm_device
+
+    cache_key = (norm_mode, effective_device, norm_precision, repo)
+    if cache_key in _vieneu_engine_cache:
+        return _vieneu_engine_cache[cache_key]
+
+    try:
+        kwargs: dict = {"mode": norm_mode}
+        if repo:
+            kwargs["backbone_repo"] = repo
+        if token:
+            kwargs["hf_token"] = token
+        if norm_mode == "v3turbo":
+            kwargs["device"] = effective_device
+            kwargs["backend"] = "pytorch" if effective_device == "cuda" else "onnx"
+            kwargs["precision"] = norm_precision
+        logger.info(
+            f"Initializing VieNeu-TTS engine (mode={norm_mode}, device={effective_device}, precision={norm_precision})..."
+        )
+        engine = Vieneu(**kwargs)
+        _vieneu_engine_cache[cache_key] = engine
+        return engine
+    except Exception as exc:
+        if effective_device == "cuda" and norm_mode == "v3turbo":
+            logger.warning(
+                f"VieNeu-TTS GPU initialization failed ({exc}); falling back to CPU (ONNX)..."
+            )
+            cpu_key = (norm_mode, "cpu", norm_precision, repo)
+            if cpu_key in _vieneu_engine_cache:
+                return _vieneu_engine_cache[cpu_key]
+            cpu_kwargs: dict = {
+                "mode": norm_mode,
+                "device": "cpu",
+                "backend": "onnx",
+                "precision": norm_precision,
+            }
+            if repo:
+                cpu_kwargs["backbone_repo"] = repo
+            if token:
+                cpu_kwargs["hf_token"] = token
+            engine = Vieneu(**cpu_kwargs)
+            _vieneu_engine_cache[cpu_key] = engine
+            return engine
+        raise
+
+
+def vieneu_tts(
+    text: str,
+    voice_id: str,
+    voice_file: str,
+    voice_rate: float = 1.0,
+    voice_volume: float = 1.0,
+    ref_audio: str | None = None,
+) -> Union[SubMaker, None]:
+    """Synthesize speech locally using VieNeu-TTS on CPU (ONNX) or GPU (CUDA PyTorch)."""
+    import numpy as np
+
+    text = utils.remove_pause_tags(text or "").strip()
+    if not text:
+        logger.error("VieNeu-TTS text is empty")
+        return None
+
+    vieneu_cfg = getattr(config, "vieneu", {}) or {}
+    mode = _normalize_vieneu_mode(vieneu_cfg.get("mode"))
+    device = _normalize_vieneu_device(vieneu_cfg.get("device"))
+    precision = _normalize_vieneu_precision(vieneu_cfg.get("precision"))
+    backbone_repo = str(vieneu_cfg.get("backbone_repo", "") or "").strip()
+    hf_token = str(vieneu_cfg.get("hf_token", "") or "").strip()
+    configured_ref = str(ref_audio or vieneu_cfg.get("ref_audio", "") or "").strip()
+
+    try:
+        speed = max(0.25, min(4.0, float(voice_rate or 1.0)))
+    except (TypeError, ValueError):
+        speed = 1.0
+
+    voice_id = str(voice_id or "").removeprefix("vieneu:").strip()
+    presets_data = _load_vieneu_presets_data(mode)
+    presets_map = presets_data.get("presets", {}) if isinstance(presets_data, dict) else {}
+    default_voice = str(
+        presets_data.get("default_voice", "Hải Đăng" if mode == "v3turbo" else "Minh Quân")
+    )
+    if not voice_id or (presets_map and voice_id not in presets_map):
+        voice_id = default_voice
+
+    try:
+        with _vieneu_engine_lock:
+            engine = _get_or_create_vieneu_engine(
+                mode=mode,
+                device=device,
+                precision=precision,
+                backbone_repo=backbone_repo,
+                hf_token=hf_token,
+            )
+
+            infer_kwargs: dict = {}
+            if configured_ref and os.path.isfile(configured_ref):
+                infer_kwargs["ref_audio"] = configured_ref
+            else:
+                infer_kwargs["voice"] = voice_id
+
+            if mode == "v3nano" and abs(speed - 1.0) >= 1e-3:
+                infer_kwargs["speed"] = speed
+
+            try:
+                wav = engine.infer(text=text, **infer_kwargs)
+            except Exception as infer_exc:
+                # If CUDA OOM or runtime error happens during GPU inference, fall back to CPU ONNX
+                if getattr(engine, "_backend", "") == "pytorch" and mode == "v3turbo":
+                    logger.warning(
+                        f"VieNeu-TTS GPU inference failed ({infer_exc}); retrying on CPU (ONNX)..."
+                    )
+                    engine = _get_or_create_vieneu_engine(
+                        mode=mode,
+                        device="cpu",
+                        precision=precision,
+                        backbone_repo=backbone_repo,
+                        hf_token=hf_token,
+                    )
+                    wav = engine.infer(text=text, **infer_kwargs)
+                else:
+                    raise
+
+        wav_arr = np.asarray(wav, dtype=np.float32).reshape(-1)
+        if wav_arr.size == 0:
+            logger.error("VieNeu-TTS returned empty audio")
+            return None
+
+        sample_rate = int(getattr(engine, "sample_rate", 48000 if mode == "v3turbo" else 24000))
+        pcm16 = np.clip(wav_arr, -1.0, 1.0)
+        pcm16_bytes = (pcm16 * 32767.0).astype(np.int16).tobytes()
+
+        ensure_file_path_exists(voice_file)
+        output_dir = os.path.dirname(os.path.abspath(voice_file)) or "."
+
+        with tempfile.TemporaryDirectory(prefix=".mpt-vieneu-", dir=output_dir) as temp_dir:
+            raw_wav_path = os.path.join(temp_dir, "raw.wav")
+            with wave.open(raw_wav_path, "wb") as wf:
+                wf.setnchannels(1)
+                wf.setsampwidth(2)
+                wf.setframerate(sample_rate)
+                wf.writeframes(pcm16_bytes)
+
+            atempo_filter = (
+                _build_ffmpeg_atempo_filter(speed)
+                if mode != "v3nano" and abs(speed - 1.0) >= 1e-3
+                else ""
+            )
+
+            is_wav_target = voice_file.lower().endswith(".wav")
+            if is_wav_target and not atempo_filter:
+                os.replace(raw_wav_path, voice_file)
+            else:
+                ffmpeg_cmd = [
+                    utils.get_ffmpeg_binary(),
+                    "-nostdin",
+                    "-v",
+                    "error",
+                    "-y",
+                    "-i",
+                    raw_wav_path,
+                    "-vn",
+                ]
+                if atempo_filter:
+                    ffmpeg_cmd.extend(["-af", atempo_filter])
+                if is_wav_target:
+                    ffmpeg_cmd.extend(["-c:a", "pcm_s16le"])
+                else:
+                    ffmpeg_cmd.extend(["-codec:a", "libmp3lame", "-q:a", "2"])
+
+                if not _publish_tts_ffmpeg_output(ffmpeg_cmd, voice_file, "VieNeu-TTS audio encode"):
+                    return None
+
+        audio_duration = _get_audio_duration_from_file(voice_file)
+        if not math.isfinite(audio_duration) or audio_duration <= 0:
+            audio_duration = float(wav_arr.size) / float(sample_rate)
+            if mode != "v3nano" and speed > 0:
+                audio_duration /= speed
+
+        sub_maker = ensure_legacy_submaker_fields(SubMaker())
+        logger.success(
+            f"VieNeu-TTS succeeded ({mode}, device={getattr(engine, '_device', device)}): {voice_file}"
+        )
+        return populate_legacy_submaker_with_full_text(
+            sub_maker=sub_maker,
+            text=text,
+            audio_duration_seconds=audio_duration,
+        )
+    except Exception as exc:
+        logger.error(f"VieNeu-TTS synthesis failed: {exc}")
+        return None
 
 
 def _format_text(text: str) -> str:

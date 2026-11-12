@@ -456,3 +456,41 @@ def test_minimax_voices_load_only_on_demand_and_sync_the_selected_voice():
     assert not any(item.label == "MiniMax TTS Voice ID" for item in app.text_input)
     assert not any(item.label == "MiniMax Voice Catalog" for item in app.selectbox)
     assert [str(item.value) for item in app.exception] == []
+
+
+def test_vieneu_settings_render_cpu_gpu_and_mode_controls():
+    test_config = dict(
+        config.vieneu,
+        device="cpu",
+        mode="v3turbo",
+        precision="fp32",
+        ref_audio="",
+    )
+    test_ui = dict(
+        config.ui,
+        voice_mode="tts",
+        tts_server="vieneu",
+        voice_name="vieneu:Hải Đăng",
+    )
+
+    with (
+        patch.object(config, "vieneu", test_config),
+        patch.object(config, "ui", test_ui),
+        patch.object(config, "try_save_config", return_value=True),
+        patch.object(voice, "is_vieneu_cuda_available", return_value=True),
+    ):
+        app = AppTest.from_file(str(WEBUI_MAIN), default_timeout=30)
+        app.session_state["ui_language"] = "vi"
+        app.run()
+
+        device_select = _widget_by_key(app.selectbox, "vieneu_device_select")
+        mode_select = _widget_by_key(app.selectbox, "vieneu_mode_select")
+        precision_select = _widget_by_key(app.selectbox, "vieneu_precision_select")
+        assert device_select.value == "cpu"
+        assert mode_select.value == "v3turbo"
+        assert precision_select.value == "fp32"
+
+        device_select.set_value("cuda").run()
+        assert test_config["device"] == "cuda"
+
+    assert [str(item.value) for item in app.exception] == []

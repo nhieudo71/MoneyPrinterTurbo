@@ -506,6 +506,22 @@
     "Configure Providers": "Configurar",
     "Active Provider": "En uso: {provider}",
     "No Configured Providers": "Todavía no hay proveedores configurados.",
-    "Provider Configuration Changed": "La configuración cambió. Revisa este proveedor en su configuración."
+    "Provider Configuration Changed": "La configuración cambió. Revisa este proveedor en su configuración.",
+    "VieNeu Compute Device": "Compute Device (CPU / GPU)",
+    "VieNeu Device Auto": "Auto (Prefer GPU if available, fallback CPU)",
+    "VieNeu Device CPU": "CPU (ONNX Runtime)",
+    "VieNeu Device GPU": "GPU (CUDA / PyTorch)",
+    "VieNeu GPU Available Hint": "NVIDIA CUDA GPU detected and ready for acceleration.",
+    "VieNeu GPU Unavailable Hint": "CUDA GPU not detected; selecting GPU or Auto will automatically fall back to CPU.",
+    "VieNeu Model Mode": "VieNeu Model Mode",
+    "VieNeu Mode V3 Turbo": "V3 Turbo (48kHz High Quality - CPU/GPU)",
+    "VieNeu Mode V3 Nano": "V3 Nano (24kHz Ultra Fast - CPU)",
+    "VieNeu Precision": "Model Precision (ONNX CPU)",
+    "VieNeu Precision FP32": "FP32 (Standard Precision)",
+    "VieNeu Precision INT8": "INT8 (Quantized - Faster on CPU)",
+    "VieNeu Reference Audio": "VieNeu Reference Audio for Voice Cloning (Optional)",
+    "VieNeu Reference Audio Help": "Upload a clean 3–10s audio sample (.wav/.mp3) to clone a custom voice instead of using the preset voice.",
+    "VieNeu Reference Audio Path": "Reference Audio Path (Optional)",
+    "VieNeu Reference Audio Path Placeholder": "Leave empty to use the selected preset voice"
   }
 }
