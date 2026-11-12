@@ -793,6 +793,12 @@
     "Long Story Duration Format": "{minutes} 分钟（约 {words} 字/词）",
     "Late-Night Storytelling Mode": "深夜讲故事模式",
     "Late-Night Storytelling Mode Help": "使用舒缓、温暖、富有画面感的叙事文风，适合长篇故事朗读与睡前聆听。",
-    "Long Story Estimate Caption": "长故事规划：约 {minutes} 分钟旁白（共 {chapters} 段连贯章节，约 {words} 词）。视频素材将在全片时长内自动平滑循环。"
+    "Long Story Estimate Caption": "长故事规划：约 {minutes} 分钟旁白（共 {chapters} 段连贯章节，约 {words} 词）。视频素材将在全片时长内自动平滑循环。",
+    "VieNeu Engine Ready Caption": "✅ VieNeu-TTS 引擎已加载到内存，可立即合成语音。",
+    "VieNeu Engine Cold Hint": "ℹ️ VieNeu-TTS 首次使用时会加载语音模型（约需 10–30 秒）。您可以点击下方按钮提前预加载并查看进度。",
+    "VieNeu Preload Button": "预加载 VieNeu-TTS 引擎",
+    "VieNeu Preloading Status": "正在启动 VieNeu-TTS 引擎...",
+    "VieNeu Preload Success": "VieNeu-TTS 已就绪 ({detail})",
+    "VieNeu Preload Failed": "VieNeu-TTS 启动失败：{error}"
   }
 }

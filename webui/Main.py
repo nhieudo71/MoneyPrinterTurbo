@@ -5990,22 +5990,26 @@ def _render_script_settings(panel, params):
                         )
 
             duration_options = [0, 5, 10, 15, 20, 30]
+            duration_labels = {
+                m: (
+                    tr("Short Video (Default)")
+                    if m == 0
+                    else tr("Long Story Duration Format").format(
+                        minutes=m,
+                        words=llm.estimate_story_plan(m)[0],
+                    )
+                )
+                for m in duration_options
+            }
             duration_col, story_col = st.columns([1.2, 1])
             with duration_col:
                 params.target_duration_minutes = stable_selectbox(
                     tr("Target Video Duration"),
                     options=duration_options,
-                    index=saved_ui_option_index(
+                    default_value=_saved_ui_choice(
                         "target_duration_minutes", duration_options, 0
                     ),
-                    format_func=lambda m: (
-                        tr("Short Video (Default)")
-                        if m == 0
-                        else tr("Long Story Duration Format").format(
-                            minutes=m,
-                            words=llm.estimate_story_plan(m)[0],
-                        )
-                    ),
+                    format_func=lambda m, _labels=duration_labels: _labels.get(m, str(m)),
                     key="target_duration_minutes_select",
                     help=tr("Target Video Duration Help"),
                 )
@@ -7169,6 +7173,30 @@ def _synthesize_voice_preview(
         f"text_length={len(content)}"
     )
     try:
+        if voice.is_vieneu_voice(voice_name) and not voice.is_vieneu_engine_loaded():
+            with st.status(tr("VieNeu Preloading Status"), expanded=True) as status_box:
+                progress_bar = st.progress(0.05)
+                step_label = st.empty()
+
+                def _on_preview_warmup(fraction, message):
+                    progress_bar.progress(min(max(float(fraction), 0.0), 1.0))
+                    step_label.write(message)
+
+                ok, detail = voice.warmup_vieneu_engine(
+                    progress_callback=_on_preview_warmup
+                )
+                if ok:
+                    status_box.update(
+                        label=tr("VieNeu Preload Success").format(detail=detail),
+                        state="complete",
+                        expanded=False,
+                    )
+                else:
+                    status_box.update(
+                        label=tr("VieNeu Preload Failed").format(error=detail),
+                        state="error",
+                        expanded=True,
+                    )
         with config.try_runtime_config_lock() as lock_acquired:
             if not lock_acquired:
                 return {"busy": True}
@@ -8097,7 +8125,7 @@ def _render_audio_settings(panel, params):
                     if hasattr(config, "vieneu") and isinstance(config.vieneu, dict)
                     else {}
                 )
-                cuda_available = voice.is_vieneu_cuda_available()
+                cuda_available = voice.is_vieneu_cuda_available(fast=True)
                 vieneu_device_options = list(voice.VIENEU_DEVICES)
                 saved_vieneu_device = str(
                     vieneu_cfg.get("device", voice.VIENEU_DEFAULT_DEVICE)
@@ -8205,6 +8233,47 @@ def _render_audio_settings(panel, params):
                 _set_runtime_config(
                     "vieneu", "ref_audio", (vieneu_ref_path_input or "").strip()
                 )
+
+                vieneu_loaded = voice.is_vieneu_engine_loaded(
+                    mode=selected_vieneu_mode,
+                    device=selected_vieneu_device,
+                    precision=vieneu_cfg.get("precision", voice.VIENEU_DEFAULT_PRECISION),
+                    backbone_repo=str(vieneu_cfg.get("backbone_repo", "") or "").strip(),
+                )
+                if vieneu_loaded:
+                    st.caption(tr("VieNeu Engine Ready Caption"))
+                else:
+                    st.caption(tr("VieNeu Engine Cold Hint"))
+                    if st.button(
+                        tr("VieNeu Preload Button"),
+                        key="vieneu_preload_button",
+                        use_container_width=True,
+                        icon=":material/bolt:",
+                    ):
+                        with st.status(tr("VieNeu Preloading Status"), expanded=True) as status_box:
+                            progress_bar = st.progress(0.05)
+                            step_label = st.empty()
+
+                            def _on_vieneu_warmup(fraction, message):
+                                progress_bar.progress(min(max(float(fraction), 0.0), 1.0))
+                                step_label.write(message)
+
+                            ok, detail = voice.warmup_vieneu_engine(
+                                progress_callback=_on_vieneu_warmup
+                            )
+                            if ok:
+                                status_box.update(
+                                    label=tr("VieNeu Preload Success").format(detail=detail),
+                                    state="complete",
+                                    expanded=False,
+                                )
+                                st.rerun()
+                            else:
+                                status_box.update(
+                                    label=tr("VieNeu Preload Failed").format(error=detail),
+                                    state="error",
+                                    expanded=True,
+                                )
 
             # 根据选择的TTS服务器获取声音列表
             filtered_voices = []

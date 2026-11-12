@@ -234,6 +234,12 @@ ENGLISH_FALLBACK_KEYS = frozenset(
         "Late-Night Storytelling Mode",
         "Late-Night Storytelling Mode Help",
         "Long Story Estimate Caption",
+        "VieNeu Engine Ready Caption",
+        "VieNeu Engine Cold Hint",
+        "VieNeu Preload Button",
+        "VieNeu Preloading Status",
+        "VieNeu Preload Success",
+        "VieNeu Preload Failed",
     }
 )
 FORMAT_PLACEHOLDER_PATTERN = re.compile(r"(?<!\{)\{([a-zA-Z_][a-zA-Z0-9_]*)\}(?!\})")

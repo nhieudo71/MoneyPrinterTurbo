@@ -4,10 +4,20 @@ import tempfile
 import threading
 from timeit import default_timer as timer
 
-try:
-    from faster_whisper import WhisperModel
-except ImportError:
-    WhisperModel = None
+_UNSET = object()
+WhisperModel = _UNSET
+
+
+def _resolve_whisper_model_cls():
+    global WhisperModel
+    if WhisperModel is _UNSET:
+        try:
+            from faster_whisper import WhisperModel as _WhisperModel
+
+            WhisperModel = _WhisperModel
+        except ImportError:
+            WhisperModel = None
+    return WhisperModel
 from loguru import logger
 
 from app.config import config
@@ -42,7 +52,10 @@ def _ensure_model_loaded() -> bool:
             f"loading model: {model_path}, device: {device}, compute_type: {compute_type}"
         )
         try:
-            model = WhisperModel(
+            whisper_cls = _resolve_whisper_model_cls()
+            if whisper_cls is None:
+                return False
+            model = whisper_cls(
                 model_size_or_path=model_path, device=device, compute_type=compute_type
             )
         except Exception as e:
@@ -64,7 +77,7 @@ def create(
     word_level: bool = False,
     log_details: bool = True,
 ):
-    if WhisperModel is None:
+    if _resolve_whisper_model_cls() is None:
         logger.warning("faster_whisper not available, skipping whisper subtitle generation")
         return ""
     if not _ensure_model_loaded():

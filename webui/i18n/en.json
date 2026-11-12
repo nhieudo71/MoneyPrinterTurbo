@@ -793,6 +793,12 @@
     "Long Story Duration Format": "{minutes} min (~{words} words)",
     "Late-Night Storytelling Mode": "Late-Night Storytelling Mode",
     "Late-Night Storytelling Mode Help": "Use a calm, warm, unhurried literary narrative voice suited for reading stories and late-night listening.",
-    "Long Story Estimate Caption": "Long story plan: ~{minutes} min narration (~{words} words across {chapters} connected parts). Clips will loop smoothly across the full story."
+    "Long Story Estimate Caption": "Long story plan: ~{minutes} min narration (~{words} words across {chapters} connected parts). Clips will loop smoothly across the full story.",
+    "VieNeu Engine Ready Caption": "✅ VieNeu-TTS engine is loaded and ready in memory.",
+    "VieNeu Engine Cold Hint": "ℹ️ VieNeu-TTS loads its speech model on first use (may take 10–30s). You can preload it now with live progress.",
+    "VieNeu Preload Button": "Preload VieNeu-TTS Engine",
+    "VieNeu Preloading Status": "Starting VieNeu-TTS engine...",
+    "VieNeu Preload Success": "VieNeu-TTS is ready ({detail})",
+    "VieNeu Preload Failed": "VieNeu-TTS startup failed: {error}"
   }
 }

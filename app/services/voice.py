@@ -452,12 +452,31 @@ def _normalize_vieneu_precision(precision: str | None = None) -> str:
     return "fp32"
 
 
-def is_vieneu_cuda_available() -> bool:
+_vieneu_cuda_available_cache: bool | None = None
+
+
+def is_vieneu_cuda_available(fast: bool = False) -> bool:
     """Check whether PyTorch with CUDA is available in the current Python runtime."""
+    global _vieneu_cuda_available_cache
+    if _vieneu_cuda_available_cache is not None:
+        return _vieneu_cuda_available_cache
+
+    import importlib.util
+    import shutil
+    import sys
+
+    if fast and "torch" not in sys.modules:
+        # Fast non-blocking probe for initial WebUI render before torch is imported.
+        has_torch = importlib.util.find_spec("torch") is not None
+        has_nvidia = shutil.which("nvidia-smi") is not None
+        return bool(has_torch and has_nvidia)
+
     try:
         import torch
 
-        return bool(torch.cuda.is_available())
+        result = bool(torch.cuda.is_available())
+        _vieneu_cuda_available_cache = result
+        return result
     except Exception:
         return False
 
@@ -3630,17 +3649,62 @@ def _build_ffmpeg_atempo_filter(speed: float) -> str:
     return ",".join(filters)
 
 
+def _resolve_vieneu_effective_device(mode: str | None = None, device: str | None = None) -> tuple[str, str]:
+    norm_mode = _normalize_vieneu_mode(mode)
+    norm_device = _normalize_vieneu_device(device)
+    if norm_mode == "v3nano":
+        return norm_mode, "cpu"
+    if norm_device == "auto":
+        return norm_mode, ("cuda" if is_vieneu_cuda_available() else "cpu")
+    if norm_device == "cuda" and not is_vieneu_cuda_available():
+        return norm_mode, "cpu"
+    return norm_mode, norm_device
+
+
+def is_vieneu_engine_loaded(
+    mode: str | None = None,
+    device: str | None = None,
+    precision: str | None = None,
+    backbone_repo: str = "",
+) -> bool:
+    """Return True if a VieNeu-TTS engine matching the current config is already cached in memory."""
+    norm_mode = _normalize_vieneu_mode(mode)
+    norm_device = _normalize_vieneu_device(device)
+    norm_precision = _normalize_vieneu_precision(precision)
+    repo = str(backbone_repo or "").strip()
+
+    if norm_mode == "v3nano":
+        candidate_devices = ("cpu",)
+    elif norm_device == "auto":
+        candidate_devices = ("cuda", "cpu")
+    else:
+        candidate_devices = (norm_device,)
+
+    return any((norm_mode, dev, norm_precision, repo) in _vieneu_engine_cache for dev in candidate_devices)
+
+
+def _report_vieneu_progress(progress_callback, fraction: float, message: str) -> None:
+    if progress_callback is not None:
+        try:
+            progress_callback(max(0.0, min(1.0, float(fraction))), str(message))
+        except Exception:
+            pass
+
+
 def _get_or_create_vieneu_engine(
     mode: str,
     device: str,
     precision: str,
     backbone_repo: str = "",
     hf_token: str = "",
+    progress_callback=None,
 ):
     """Load or return cached VieNeu-TTS instance, with automatic GPU -> CPU fallback."""
+    _report_vieneu_progress(progress_callback, 0.15, "Đang nạp thư viện VieNeu-TTS...")
     _ensure_vieneu_importable()
     from vieneu import Vieneu
 
+    _report_vieneu_progress(progress_callback, 0.30, "Đang kiểm tra thiết bị xử lý (CPU/GPU)...")
     norm_mode = _normalize_vieneu_mode(mode)
     norm_device = _normalize_vieneu_device(device)
     norm_precision = _normalize_vieneu_precision(precision)
@@ -3661,6 +3725,11 @@ def _get_or_create_vieneu_engine(
 
     cache_key = (norm_mode, effective_device, norm_precision, repo)
     if cache_key in _vieneu_engine_cache:
+        _report_vieneu_progress(
+            progress_callback,
+            0.75,
+            f"VieNeu-TTS đã sẵn sàng ({norm_mode} / {effective_device.upper()})",
+        )
         return _vieneu_engine_cache[cache_key]
 
     try:
@@ -3673,16 +3742,28 @@ def _get_or_create_vieneu_engine(
             kwargs["device"] = effective_device
             kwargs["backend"] = "pytorch" if effective_device == "cuda" else "onnx"
             kwargs["precision"] = norm_precision
+        msg = f"Đang tải và khởi tạo mô hình VieNeu-TTS ({norm_mode}, {effective_device.upper()}, {norm_precision})..."
         logger.info(
             f"Initializing VieNeu-TTS engine (mode={norm_mode}, device={effective_device}, precision={norm_precision})..."
         )
+        _report_vieneu_progress(progress_callback, 0.50, msg)
         engine = Vieneu(**kwargs)
         _vieneu_engine_cache[cache_key] = engine
+        _report_vieneu_progress(
+            progress_callback,
+            0.80,
+            f"Khởi tạo xong VieNeu-TTS ({norm_mode} / {effective_device.upper()})",
+        )
         return engine
     except Exception as exc:
         if effective_device == "cuda" and norm_mode == "v3turbo":
             logger.warning(
                 f"VieNeu-TTS GPU initialization failed ({exc}); falling back to CPU (ONNX)..."
+            )
+            _report_vieneu_progress(
+                progress_callback,
+                0.55,
+                "Khởi tạo GPU không thành công, đang chuyển sang CPU (ONNX)...",
             )
             cpu_key = (norm_mode, "cpu", norm_precision, repo)
             if cpu_key in _vieneu_engine_cache:
@@ -3699,8 +3780,40 @@ def _get_or_create_vieneu_engine(
                 cpu_kwargs["hf_token"] = token
             engine = Vieneu(**cpu_kwargs)
             _vieneu_engine_cache[cpu_key] = engine
+            _report_vieneu_progress(progress_callback, 0.80, "Khởi tạo xong VieNeu-TTS (CPU ONNX)")
             return engine
         raise
+
+
+def warmup_vieneu_engine(progress_callback=None) -> tuple[bool, str]:
+    """Preload VieNeu-TTS engine into memory and report progress."""
+    vieneu_cfg = getattr(config, "vieneu", {}) or {}
+    mode = _normalize_vieneu_mode(vieneu_cfg.get("mode"))
+    device = _normalize_vieneu_device(vieneu_cfg.get("device"))
+    precision = _normalize_vieneu_precision(vieneu_cfg.get("precision"))
+    backbone_repo = str(vieneu_cfg.get("backbone_repo", "") or "").strip()
+    hf_token = str(vieneu_cfg.get("hf_token", "") or "").strip()
+
+    try:
+        with _vieneu_engine_lock:
+            engine = _get_or_create_vieneu_engine(
+                mode=mode,
+                device=device,
+                precision=precision,
+                backbone_repo=backbone_repo,
+                hf_token=hf_token,
+                progress_callback=progress_callback,
+            )
+        backend = getattr(engine, "_backend", "onnx")
+        _report_vieneu_progress(
+            progress_callback,
+            1.0,
+            f"VieNeu-TTS đã sẵn sàng ({mode} / {backend})",
+        )
+        return True, f"{mode} ({backend})"
+    except Exception as exc:
+        logger.error(f"VieNeu-TTS warmup failed: {exc}")
+        return False, str(exc)
 
 
 def vieneu_tts(
